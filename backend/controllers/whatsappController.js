@@ -1,3 +1,4 @@
+const { uploadBase64Media } = require('../services/storageService');
 const { analyzeImageForReport } = require('../services/aiService');
 const axios = require('axios');
 const { db } = require('../config/firebase');
@@ -289,26 +290,41 @@ exports.handleWebhook = async (req, res) => {
                 return res.send('OK');
             }
 
-            // Create Report Object
-            const reportId = uuidv4();
-            const caption = message.caption || message.text?.body || aiResult.description || "Report via WhatsApp";
+// Create Report Object
+          const reportId = uuidv4();
+          const caption =
+          message.caption ||
+          message.text?.body ||
+          aiResult.description ||
+          "Report via WhatsApp";
 
-            // Find User Map
-            let finalUserId = senderNumber;
-            const linkedUid = await findUidByMobile(senderNumber);
-            if (linkedUid) finalUserId = linkedUid;
+// Find User Map
+        let finalUserId = senderNumber;
+        const linkedUid = await findUidByMobile(senderNumber);
+       if (linkedUid) finalUserId = linkedUid;
+
+// ✅ Upload image to Firebase Storage
+            let finalImageUrl = "https://placehold.co/400x300?text=No+Media";
+
+           if (mediaBase64) {
+               finalImageUrl = await uploadBase64Image(mediaBase64, reportId);
+}
 
             const newReport = {
                 id: reportId,
-                type: aiResult.issue || 'General',
+                 // ✅ WHAT happened
+                type: aiResult.eventType || aiResult.issue || 'General',
                 description: aiResult.description || caption,
-                imageUrl: mediaUrl || "https://placehold.co/100?text=Text+Report", // Fallback for text
+                imageUrl: finalImageUrl,
                 mediaType: mediaType, // 'image', 'video', 'audio', 'text'
-                department: aiResult.category || 'General',
+                // ✅ WHO should handle it
+                department: aiResult.department || 'General',
                 status: 'Pending Address', // Always ask for address next
+                 // ✅ HOW serious
                 priority: aiResult.priority || 'Medium',
                 aiConfidence: aiResult.confidence || 0,
                 aiAnalysis: JSON.stringify(aiResult),
+                aiSource: 'Gemini', 
                 timestamp: new Date().toISOString(),
                 createdAt: new Date().toISOString(),
                 source: 'WhatsApp',
