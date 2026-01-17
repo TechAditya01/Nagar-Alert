@@ -1,450 +1,410 @@
-const { analyzeImageForReport } = require('../services/aiService');
+const { analyzeMedia, analyzeText } = require('../services/aiService');
 const axios = require('axios');
 const { db } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 
-// Helper to download media
-// Helper to download media
-// Helper to download media
+// ==========================================
+// CONFIGURATION & UTILS
+// ==========================================
+const WHAPI_TOKEN = process.env.WHAPI_TOKEN;
+const WHAPI_URL = process.env.WHAPI_INSTANCE_URL;
+const ADMIN_NUMBER = process.env.ADMIN_NUMBER;
+
+// Helper: Download Media with Smart Retry
 async function downloadMedia(url) {
     try {
-        // Handle Data URIs (from Simulator)
-        if (url && url.startsWith('data:')) {
-            // Remove prefix (e.g. "data:image/png;base64,")
-            return url.split(',')[1];
+        if (!url) return null;
+        if (url.startsWith('data:')) return url.split(',')[1];
+
+        // Strategy 1: With Token (Whapi Standard)
+        try {
+            const config = { responseType: 'arraybuffer', timeout: 15000 };
+            const isPublicTest = url.includes('placehold.co') || url.includes('via.placeholder.com');
+
+            if (process.env.WHAPI_TOKEN && !isPublicTest) {
+                config.headers = { Authorization: `Bearer ${process.env.WHAPI_TOKEN}` };
+            }
+            const response = await axios.get(url, config);
+            return Buffer.from(response.data, 'binary').toString('base64');
+        } catch (firstErr) {
+            console.warn(`[Media] Token download failed. Retrying plain...`);
+
+            // Strategy 2: Without Token (Pre-signed URLs)
+            const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
+            return Buffer.from(response.data, 'binary').toString('base64');
         }
-
-        const config = { responseType: 'arraybuffer' };
-
-        // Only attach generic Whapi token if it's NOT a known public test URL
-        // (Public testing services might reject unknown Bearer tokens)
-        const isPublicTest = url.includes('placehold.co') || url.includes('via.placeholder.com') || url.includes('placeholder.com');
-
-        if (process.env.WHAPI_TOKEN && !isPublicTest) {
-            config.headers = { Authorization: `Bearer ${process.env.WHAPI_TOKEN}` };
-        }
-
-        const response = await axios.get(url, config);
-        const buffer = Buffer.from(response.data, 'binary');
-        return buffer.toString('base64');
-    } catch (error) {
-        console.error("Error downloading media:", error.message);
+    } catch (finalErr) {
+        console.error("Error downloading media:", finalErr.message);
         return null;
     }
 }
 
-// Whapi Config - Fallback to hardcoded if env fails (for immediate reliability)
-const WHAPI_TOKEN = process.env.WHAPI_TOKEN
-const WHAPI_URL = process.env.WHAPI_INSTANCE_URL
-const ADMIN_NUMBER = process.env.ADMIN_NUMBER
-
-// Helper: Send Message
+// Helper: Send WhatsApp Message
 const sendMessage = async (to, message) => {
     try {
+        if (!to) return;
         await axios.post(`${WHAPI_URL}/messages/text`, {
             to,
             body: message
         }, {
-            headers: {
-                Authorization: `Bearer ${WHAPI_TOKEN}`,
-                "Content-Type": "application/json"
-            }
+            headers: { Authorization: `Bearer ${WHAPI_TOKEN}`, "Content-Type": "application/json" }
         });
     } catch (error) {
         console.error("WhatsApp Send Error:", error.response?.data || error.message);
     }
 };
 
-// Helper: Broadcast to Targeted City/Area subscribers
-const broadcastTargetedAlert = async (targetLocation, message) => {
+// Helper: Download Meta Cloud Media
+async function downloadMetaMedia(mediaId) {
     try {
-        console.log(`[BROADCAST] Target: ${targetLocation}`);
-        const snapshot = await db.ref("users/citizens").once("value");
-        if (!snapshot.exists()) return;
+        const token = process.env.WHATSAPP_TOKEN;
+        if (!token) return null;
 
-        const users = snapshot.val();
-        let count = 0;
-
-        // Normalize target for comparison
-        const target = targetLocation ? targetLocation.toLowerCase() : "";
-
-        for (const uid in users) {
-            const user = users[uid];
-            // Fix: Auth saves as 'mobile', legacy might used 'phoneNumber'
-            const phone = user.mobile || user.phoneNumber;
-
-            // Check if user is in the target area (City or Address match)
-            // Default to true if no target specified (Global Broadcast)
-            let isMatch = true;
-            if (target) {
-                const userCity = (user.city || "").toLowerCase();
-                const userAddress = (user.address || "").toLowerCase();
-
-                // DEBUG LOG
-                console.log(`[BROADCAST CHECK] Checking User ${uid}... City: '${userCity}', Addr: '${userAddress}', Target: '${target}'`);
-
-                if (!userCity.includes(target) && !userAddress.includes(target)) {
-                    isMatch = false;
-                }
-            }
-
-            if (phone && isMatch) {
-                let cleanPhone = phone.replace(/\D/g, '');
-                // Ensure ID format for Whapi (Default to 91 for India)
-                if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-
-                if (cleanPhone.length >= 10) {
-                    console.log(`[BROADCAST] Sending to ${cleanPhone} (User City: ${user.city})`);
-                    await sendMessage(cleanPhone, message);
-                    count++;
-                }
-            }
-        }
-        console.log(`[BROADCAST] Sent to ${count} citizens in ${targetLocation || "ALL"}.`);
+        const urlRes = await axios.get(`https://graph.facebook.com/v19.0/${mediaId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const mediaRes = await axios.get(urlRes.data.url, {
+            responseType: 'arraybuffer',
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        return Buffer.from(mediaRes.data, 'binary').toString('base64');
     } catch (e) {
-        console.error("Broadcast Logic Error:", e);
-    }
-};
-
-// NEW: Exportable function for Frontend Broadcast Button
-exports.sendManualBroadcast = async (req, res) => {
-    try {
-        const { area, message, type } = req.body; // Data from Broadcast.jsx
-
-        // Add a header for the message
-        const formattedMessage = `📢 *OFFICIAL ${type?.toUpperCase() || 'ALERT'}*\n📍 Area: ${area}\n\n${message}`;
-
-        // Reuse your existing helper
-        await broadcastTargetedAlert(area, formattedMessage);
-
-        res.status(200).json({ success: true, message: "Broadcast initiated" });
-    } catch (error) {
-        console.error("Manual Broadcast Error:", error);
-        res.status(500).json({ error: "Failed to send broadcast" });
-    }
-};
-
-// Helper: Find User UID by Mobile
-const findUidByMobile = async (mobile) => {
-    try {
-        // Clean mobile: remove + and 91 if needed, or matched based on DB format
-        // DB usually stores as provided. Let's try flexible search.
-        const registryRef = db.ref('users/registry');
-        // Optimization: orderByChild 'mobile' should be indexed in rules
-        const snapshot = await registryRef.orderByChild('mobile').equalTo(mobile).once('value');
-        if (snapshot.exists()) {
-            return Object.keys(snapshot.val())[0];
-        }
-
-        // Try with/without prefix if not found
-        const clean = mobile.replace(/\D/g, '');
-        const withPrefix = clean.length === 10 ? '91' + clean : clean;
-        const snapshot2 = await registryRef.orderByChild('mobile').equalTo(Number(withPrefix)).once('value'); // Check as Number
-        if (snapshot2.exists()) return Object.keys(snapshot2.val())[0];
-
-        const snapshot3 = await registryRef.orderByChild('mobile').equalTo(withPrefix).once('value'); // Check as String
-        if (snapshot3.exists()) return Object.keys(snapshot3.val())[0];
-
-        return null;
-    } catch (e) {
-        console.error("UID Lookup Error:", e);
+        console.error("Meta Download Error:", e.message);
         return null;
     }
-};
+}
+
+// ==========================================
+// NEW: DYNAMIC AI GENERATOR (No Hardcoding)
+/**
+ * Asks the AI to generate a reply based on the context.
+ * @param {Object} context - { type: 'media_analysis'|'text_reply', data: object, userName: string }
+ */
+// ==========================================
+// NEW: NLP & HUMAN PERSONA ENGINE
+// ==========================================
+
+async function getSmartReplyFromAI(context) {
+    const userName = context.userName || "Friend";
+
+    // 1. Define the Persona (Dynamic)
+    const botName = process.env.BOT_NAME || "Rahul";
+    const appName = process.env.APP_NAME || "Nagar Alert";
+
+    const systemInstruction = `
+    You are "${botName}" from ${appName} 🚨.
+    
+    YOUR PERSONALITY:
+    - Dedicated community volunteer.
+    - Empathetic but efficient.
+    - Uses mild Indian English/Hinglish (e.g., "Ji", "Don't worry").
+    
+    YOUR GOAL:
+    1. Acknowledge the photo/issue immediately.
+    2. Ask for the LOCATION if it's missing.
+    
+    RULES:
+    - Keep it under 25 words.
+    - NO generic "Hello/Welcome". Jump to the issue.
+    - Example 1: "Pothole detected! looks dangerous. Where is this exactly?"
+    - Example 2: "Garbage pile noted. Please share the location so we can clean it."
+    `;
+
+    // 2. Format Data for the AI
+    let userContext = "";
+
+    if (context.type === 'media_analysis') {
+        const data = context.data;
+        const locationFound = data.detectedLocation ? `Location detected: "${data.detectedLocation}"` : "NO Location found.";
+
+        userContext = `
+        REPORT: ${data.issue} (${data.description})
+        SEVERITY: ${data.priority}
+        LOCATION_DATA: ${locationFound}
+        
+        TASK:
+        - If Location is found: Confirm it ("Is this at [Location]?").
+        - If Location is MISSING: Ask for it politely but urgently ("Please share the location").
+        `;
+    }
+    else if (context.type === 'ask_name') {
+        userContext = `User reported: ${context.data.issue}. We need their Name. Ask casually.`;
+    }
+    else if (context.type === 'report_success') {
+        userContext = `
+            Situation: Report verified for ${context.data.issue} at ${context.data.address}.
+            Task: Send a formal but friendly confirmation. 
+            Format exactly like this (fill in details):
+            
+            ✅ Location Saved: ${context.data.address}
+            
+            Report ID: #${Math.floor(Math.random() * 10000)}
+            Status: ✅ Verified & Accepted
+            
+            (We have alerted the authorities)
+            `;
+    }
+    else {
+        // General Chat
+        userContext = `User said: "${context.data.text}". Reply conversationally.`;
+    }
+
+    // 3. Generate Reply
+    const aiService = require('../services/aiService');
+    return await aiService.generateChatReply(systemInstruction, userContext);
+}
+
+
+// ==========================================
+// MAIN WEBHOOK HANDLER
+// ==========================================
+
+async function processIncomingMessage(message, provider, metadata = {}) {
+    let from, senderNumber;
+
+    try {
+        let type, body, mediaId, mimeTypeRaw, mediaUrl = null;
+
+        // 1. Parse Provider Data
+        if (provider === 'whapi') {
+            senderNumber = (message.chat_id || message.from).split('@')[0];
+            from = message.chat_id || message.from;
+            type = message.type;
+            body = message.text?.body || "";
+        } else if (provider === 'meta') {
+            senderNumber = message.from;
+            from = message.from;
+            type = message.type;
+            if (type === 'text') body = message.text.body;
+            else if (type === 'image') { mediaId = message.image.id; mimeTypeRaw = message.image.mime_type; }
+            else if (type === 'video') { mediaId = message.video.id; mimeTypeRaw = message.video.mime_type; }
+            else if (type === 'audio') { mediaId = message.audio.id; mimeTypeRaw = message.audio.mime_type; }
+        }
+
+        console.log(`[MSG] From: ${senderNumber} | Type: ${type}`);
+
+        // 2. Get User Profile
+        const waUserRef = db.ref(`users/whatsapp_profiles/${senderNumber}`);
+        const waUserSnap = await waUserRef.once('value');
+        let waUserProfile = waUserSnap.val() || {};
+
+        // 3. Check Pending Reports
+        let pendingReport = null;
+        const userReportsSnap = await db.ref('reports').orderByChild('userPhone').equalTo(senderNumber).once('value');
+
+        if (userReportsSnap.exists()) {
+            const reports = Object.values(userReportsSnap.val());
+            reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const latest = reports[0];
+
+            if (['Draft_Waiting_Name', 'Draft_Waiting_Location', 'Pending Address'].includes(latest.status)
+                && (new Date() - new Date(latest.createdAt) < 2 * 60 * 60 * 1000)) {
+                pendingReport = latest;
+            }
+        }
+
+        // ==========================================
+        // SCENARIO A: TEXT MESSAGES
+        // ==========================================
+        if (type === 'text') {
+            const text = body.trim();
+
+            // A1. Handle Pending "Wait for Name"
+            if (pendingReport && pendingReport.status === 'Draft_Waiting_Name') {
+                await db.ref(`reports/${pendingReport.id}`).update({
+                    userName: text,
+                    status: 'Draft_Waiting_Location'
+                });
+                await waUserRef.update({ name: text, phone: senderNumber });
+
+                // Re-fetch analysis to give context to AI
+                const rSnap = await db.ref(`reports/${pendingReport.id}`).once('value');
+                const analysis = rSnap.val().aiAnalysis ? JSON.parse(rSnap.val().aiAnalysis) : { issue: "Issue" };
+
+                // GENERATE AI REPLY (Name provided, asking for Location)
+                const aiReply = await getSmartReplyFromAI({
+                    type: 'media_analysis', // Re-trigger the media analysis prompt but now we know the name
+                    data: analysis,
+                    userName: text
+                });
+
+                await sendMessage(from, aiReply);
+                return;
+            }
+
+            // A2. Handle Pending "Wait for Location"
+            if (pendingReport && (pendingReport.status === 'Draft_Waiting_Location' || pendingReport.status === 'Pending Address')) {
+                const finalStatus = pendingReport.aiConfidence > 80 ? 'Verified' : 'Pending';
+
+                const updates = {
+                    'location/address': text,
+                    status: finalStatus,
+                    userName: waUserProfile.name || pendingReport.userName
+                };
+
+                await db.ref(`reports/${pendingReport.id}`).update(updates);
+                await db.ref(`reports/by_department/${(pendingReport.department || 'General').replace(/[\/\.#\$\[\]]/g, "_")}/${pendingReport.id}`).update(updates);
+
+                if (!waUserProfile.defaultAddress) await waUserRef.update({ defaultAddress: text });
+
+                // GENERATE AI REPLY (Success)
+                const successMsg = await getSmartReplyFromAI({
+                    type: 'report_success',
+                    data: { issue: pendingReport.type, address: text },
+                    userName: waUserProfile.name
+                });
+
+                await sendMessage(from, successMsg);
+
+                if (finalStatus === 'Verified') {
+                    exports.broadcastTargetedAlert(text, `🚨 *New Alert: ${pendingReport.type}*\n📍 ${text}`);
+                }
+                return;
+            }
+
+            // A3. General Chat (AI GENERATED)
+            // Instead of hardcoded "Hi/Hello", we send the user's text to the AI
+            await sendMessage(from, "🤖..."); // Optional: Typing indicator
+
+            const chatReply = await getSmartReplyFromAI({
+                type: 'chat',
+                data: { text: text },
+                userName: waUserProfile.name
+            });
+
+            await sendMessage(from, chatReply);
+            return;
+        }
+
+        // ==========================================
+        // SCENARIO B: MEDIA MESSAGES (NEW REPORT)
+        // ==========================================
+        if (['image', 'video', 'audio', 'voice'].includes(type)) {
+
+            if (pendingReport) {
+                await sendMessage(from, `⚠️ You have a pending report. Please finish that first.`);
+                return;
+            }
+
+            await sendMessage(from, "🤖 *Analyzing Media...*");
+
+            // 1. Download Media
+            let mediaBase64 = null;
+            if (provider === 'meta' && mediaId) mediaBase64 = await downloadMetaMedia(mediaId);
+            else if (provider === 'whapi') {
+                const link = (message.video?.link || message.video?.url) || (message.image?.link || message.image?.url) || (message.audio?.link || message.voice?.link);
+                mediaUrl = link;
+                mediaBase64 = await downloadMedia(link);
+            }
+
+            // 2. AI Analysis (Vision)
+            let aiResult = { isReal: false };
+            if (mediaBase64) {
+                const mimeMap = { image: 'image/jpeg', video: 'video/mp4', audio: 'audio/ogg', voice: 'audio/ogg' };
+                mimeTypeRaw = mimeTypeRaw || mimeMap[type];
+                aiResult = await analyzeMedia(mediaBase64, mimeTypeRaw);
+            } else {
+                aiResult = { isReal: true, issue: "Report (Media Pending)", description: "Processing...", category: "General", priority: "Medium", confidence: 100 };
+            }
+
+            if (!aiResult.isReal) {
+                await sendMessage(from, `❌ AI could not verify this issue. Please send a clear photo.`);
+                return;
+            }
+
+            // 3. Save to DB
+            const reportId = uuidv4();
+            await db.ref(`reports/${reportId}`).set({
+                id: reportId,
+                type: aiResult.issue,
+                description: aiResult.description,
+                category: aiResult.category,
+                priority: aiResult.priority,
+                imageUrl: mediaBase64 ? `data:${mimeTypeRaw};base64,${mediaBase64}` : (mediaUrl || "Pending"),
+                status: waUserProfile.name ? 'Draft_Waiting_Location' : 'Draft_Waiting_Name',
+                aiConfidence: aiResult.confidence,
+                aiAnalysis: JSON.stringify(aiResult),
+                createdAt: new Date().toISOString(),
+                userPhone: senderNumber,
+                userName: waUserProfile.name || null
+            });
+
+            // 4. GENERATE AI REPLY
+            // If we don't know the name, ask for name
+            if (!waUserProfile.name) {
+                const namePrompt = await getSmartReplyFromAI({
+                    type: 'ask_name',
+                    data: { issue: aiResult.issue },
+                    userName: null
+                });
+                await sendMessage(from, namePrompt);
+            } else {
+                // If we know name, generate full analysis response
+                const analysisReply = await getSmartReplyFromAI({
+                    type: 'media_analysis',
+                    data: aiResult,
+                    userName: waUserProfile.name
+                });
+                await sendMessage(from, analysisReply);
+            }
+        }
+
+    } catch (e) {
+        console.error("Fatal Handler Error:", e);
+        if (from) await sendMessage(from, "⚠️ System Error.");
+    }
+}
+
+// ==========================================
+// EXPORTS
+// ==========================================
 
 exports.handleWebhook = async (req, res) => {
     try {
-        const data = req.body;
-        const message = data.messages?.[0];
-        if (!message) return res.send('OK');
-        if (message.from_me) return res.send('OK');
-
-        const from = message.chat_id || message.from;
-        const senderRaw = message.from;
-        const isGroup = from.includes('@g.us');
-        const senderNumber = senderRaw.split('@')[0];
-        const type = message.type;
-        const body = message.text?.body || "";
-
-        console.log(`[WEBHOOK] Chat: ${from}, Sender: ${senderNumber} (Type: ${type})`);
-
-        // --- 1. ADMIN COMMANDS (VERIFY / REJECT) ---
-        const cleanAdmin = (process.env.ADMIN_NUMBER || "").replace(/\D/g, '');
-        if (senderNumber === cleanAdmin || senderNumber === '919999999999') { // Authorize Admin (Simulator too)
-            if (body.startsWith("VERIFY") || body.startsWith("REJECT")) {
-                const action = body.startsWith("VERIFY") ? "Accepted" : "Rejected";
-                const statusLabel = action === 'Rejected' ? 'Rejected - Unconventional Report' : action;
-                const reportId = body.split(" ")[1];
-
-                if (reportId) {
-                    await db.ref(`reports/${reportId}`).update({ status: statusLabel });
-                    const reportSnap = await db.ref(`reports/${reportId}`).once('value');
-                    const report = reportSnap.val();
-
-                    if (report?.department) {
-                        const deptKey = report.department.replace(/[\/\.#\$\[\]]/g, "_");
-                        await db.ref(`reports/by_department/${deptKey}/${reportId}`).update({ status: statusLabel });
-                    }
-
-                    await sendMessage(from, `${action === 'Accepted' ? '✅' : '❌'} Report ${reportId} ${action}.`);
-
-                    // Notify User
-                    if (report && report.userPhone) {
-                        const shortId = reportId.slice(-6).toUpperCase();
-                        const msg = `ℹ️ *Status Update*\n🆔 Report #${shortId}\n\nCurrent Status: *${statusLabel}*`;
-
-                        await sendMessage(report.userPhone, msg);
+        const body = req.body;
+        if (body.messages) {
+            for (const msg of body.messages) {
+                if (msg.from_me) continue;
+                await processIncomingMessage(msg, 'whapi');
+            }
+        } else if (body.object === 'whatsapp_business_account' && body.entry) {
+            for (const entry of body.entry) {
+                for (const change of entry.changes) {
+                    if (change.value?.messages) {
+                        for (const msg of change.value.messages) {
+                            await processIncomingMessage(msg, 'meta', change.value.metadata);
+                        }
                     }
                 }
-                return res.send('OK');
             }
         }
-
-        // --- 2. MULTIMODAL REPORT HANDLING ---
-        const { analyzeMedia, analyzeText } = require('../services/aiService');
-
-        let isReport = false;
-        let aiResult = null;
-        let mediaUrl = null;
-        let mimeType = null;
-        let mediaType = type;
-
-        // A. HANDLE MEDIA (Image, Video, Audio)
-        let mediaBase64 = null; // Scope fix
-        if (type === 'image' || type === 'video' || type === 'audio') { // Voice Note is 'audio' or 'ppt' (check Whapi docs, usually audio)
-            isReport = true;
-            await sendMessage(from, "🔍 Analyzing image for authenticity... Please wait.");
-
-            const isVideo = type === 'video';
-            const isAudio = type === 'audio' || type === 'voice';
-            mediaUrl = isVideo ? message.video?.link : (isAudio ? (message.audio?.link || message.voice?.link) : message.image?.link);
-            mimeType = isVideo ? 'video/mp4' : (isAudio ? 'audio/ogg' : 'image/jpeg'); // Default assumptions
-            mediaType = isAudio ? 'audio' : (isVideo ? 'video' : 'image');
-
-            if (mediaUrl) {
-                mediaBase64 = await downloadMedia(mediaUrl);
-                if (mediaBase64) {
-                    aiResult = await analyzeMedia(mediaBase64, mimeType);
-                }
-            }
-        }
-
-        // B. HANDLE TEXT (Could be Report OR Address Update OR Chat)
-        else if (type === 'text') {
-            // Check if this is an Address Update for a recent pending report
-            const recentSnap = await db.ref('reports').orderByChild('userPhone').equalTo(senderNumber).limitToLast(1).once('value');
-            if (recentSnap.exists()) {
-                const reportData = Object.values(recentSnap.val())[0];
-                const timeDiff = new Date() - new Date(reportData.createdAt);
-
-                // If recently created and status is 'Pending Address' (Wait Address)
-                if (reportData.status === 'Pending Address' && timeDiff < 15 * 60 * 1000) {
-                    // TREAT AS ADDRESS UPDATE
-                    const newAddress = body;
-                    await db.ref(`reports/${reportData.id}`).update({ 'location/address': newAddress, status: 'Pending' });
-                    // Also update dept node... (simplified for brevity)
-                    const deptKey = (reportData.department || "General").replace(/[\/\.#\$\[\]]/g, "_");
-                    await db.ref(`reports/by_department/${deptKey}/${reportData.id}`).update({ 'location/address': newAddress, status: 'Pending' });
-
-                    await sendMessage(from, `✅ *Location Saved: ${newAddress}*\n\nReport ID: ${reportData.id}\nStatus: Verification Pending.\n\n(We will notify you when verified)`);
-                    return res.send('OK');
-                }
-            }
-
-            // If not an address update, Analyze Text for Potential Report
-            // If not an address update, decide what to do with text
-            const isLongText = body.length > 10;
-            const isGreeting = ['hi', 'hello', 'hey', 'help', 'start', 'menu'].includes(body.toLowerCase().trim());
-
-            if (isLongText) {
-                // Potential detailed text report
-                const textAnalysis = await analyzeText(body);
-                if (textAnalysis.isReal && textAnalysis.confidence > 70) {
-                    isReport = true;
-                    aiResult = textAnalysis;
-                    await sendMessage(from, "📝 Text Report Detected. Analyzing...");
-                } else if (!isGroup && isGreeting) {
-                    await sendMessage(from, `👋 Welcome to Nagar Alert Hub!\n\nI can help you report civic issues.\n\n📸 Send a *Photo/Video/Audio* of the issue.\n📝 Or describe the issue in detail.`);
-                    return res.send('OK');
-                }
-            } else if (!isGroup) {
-                // Short text logic
-                if (isGreeting) {
-                    await sendMessage(from, `👋 Welcome to Nagar Alert Hub!\n\nI can help you report civic issues.\n\n📸 Send a *Photo/Video/Audio* of the issue.\n📝 Or describe the issue in detail.`);
-                    return res.send('OK');
-                }
-                // If it was a short address update, it should have been caught above.
-                // If not caught, it's just random short text. IGNORE IT.
-            }
-        }
-
-        // --- 3. CREATE REPORT IF VERIFIED ---
-        if (isReport && aiResult) {
-
-            // Simulation Bypass Logic for Testing
-            const isSimulation = mediaUrl && (mediaUrl.includes('placehold.co') || mediaUrl.includes('placeholder.com'));
-
-            if (!aiResult.isReal && !isSimulation) {
-                await sendMessage(from, `⚠️ *Report Rejected*\n\nReason: ${aiResult.fakeReason || "Content violation detected."}`);
-                return res.send('OK');
-            }
-
-            // Create Report Object
-            const reportId = uuidv4();
-            const caption = message.caption || message.text?.body || aiResult.description || "Report via WhatsApp";
-
-            // Find User Map
-            let finalUserId = senderNumber;
-            const linkedUid = await findUidByMobile(senderNumber);
-            if (linkedUid) finalUserId = linkedUid;
-
-            const newReport = {
-                id: reportId,
-                type: aiResult.issue || 'General',
-                description: aiResult.description || caption,
-                imageUrl: mediaUrl || "https://placehold.co/100?text=Text+Report", // Fallback for text
-                mediaType: mediaType, // 'image', 'video', 'audio', 'text'
-                department: aiResult.category || 'General',
-                status: 'Pending Address', // Always ask for address next
-                priority: aiResult.priority || 'Medium',
-                aiConfidence: aiResult.confidence || 0,
-                aiAnalysis: JSON.stringify(aiResult),
-                timestamp: new Date().toISOString(),
-                createdAt: new Date().toISOString(),
-                source: 'WhatsApp',
-                userId: finalUserId,
-                userPhone: senderNumber,
-                userName: message.from_name || "WhatsApp User",
-                location: { address: "Pending...", lat: 0, lng: 0 }
-            };
-
-            await db.ref(`reports/${reportId}`).set(newReport);
-            const deptKey = newReport.department.replace(/[\/\.#\$\[\]]/g, "_");
-            await db.ref(`reports/by_department/${deptKey}/${reportId}`).set(newReport);
-
-            await sendMessage(from,
-                `✅ *Verified & Accepted*\n\nIssue: ${newReport.type}\nSeverity: ${newReport.priority}\n\nYour report has been sent to the authorities!\n\n📍 *Action Required:* Please reply with the *Location/Address* to finalize.`
-            );
-            return res.send('OK');
-        }
-
-        return res.send('OK');
-
+        res.send('OK');
     } catch (error) {
         console.error("Webhook Error:", error);
         res.status(500).send("Error");
     }
 };
 
-// NEW: Create Community Helper
-const createCommunity = async (name, participants) => {
-    try {
-        const response = await axios.post(`${WHAPI_URL}/groups`, {
-            subject: name,
-            participants: participants.map(p => p.replace(/\D/g, '')),
-            description: "Community for local area alerts and civic reports."
-        }, {
-            headers: { Authorization: `Bearer ${WHAPI_TOKEN}` }
-        });
-        return response.data.group_id;
-    } catch (error) {
-        console.error("Whapi Community Creation Error:", error.message);
-        return null;
+exports.verifyWebhook = (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    if (mode === 'subscribe' && token === (process.env.WEBHOOK_VERIFY_TOKEN || 'nagar_alert_verify_token')) {
+        return res.status(200).send(challenge);
     }
+    res.status(403).send('Verification failed');
 };
 
-// Function to find an existing group by name
-const findGroupByName = async (name) => {
+exports.sendManualBroadcast = async (req, res) => {
     try {
-        const response = await axios.get(`${WHAPI_URL}/groups`, {
-            headers: { Authorization: `Bearer ${WHAPI_TOKEN}` }
-        });
-        // Whapi returns a list of groups; find one that matches the city name
-        return response.data.groups.find(g => g.name.toLowerCase() === name.toLowerCase());
-    } catch (error) {
-        console.error("Error fetching groups:", error.message);
-        return null;
-    }
+        const { area, message, type } = req.body;
+        await exports.broadcastTargetedAlert(area, `📢 *${type?.toUpperCase() || 'ALERT'}*\n📍 Area: ${area}\n\n${message}`);
+        res.status(200).json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 };
 
-// Function to create a city subgroup and link it to the community
-// Function to create a city subgroup and link it to the community
-// Function to create a city subgroup and link it to the community
-exports.joinCityCommunity = async (phone, cityName) => {
-    try {
-        let cleanPhone = phone.replace(/\D/g, '');
-        if (cleanPhone.length === 10) cleanPhone = '91' + cleanPhone;
-
-        let group = await findGroupByName(cityName);
-        let groupId;
-
-        if (!group) {
-            console.log(`[WHAPI] Group for ${cityName} not found. Attempting to create...`);
-
-            try {
-                // Try creating with Admin Number first (most reliable if Admin != Bot)
-                let adminPhone = (process.env.ADMIN_NUMBER || "").replace(/\D/g, '');
-                if (adminPhone && adminPhone.length === 10) adminPhone = '91' + adminPhone;
-
-                // If no admin phone, fallback to user phone
-                const seedParticipant = adminPhone ? [adminPhone] : [cleanPhone];
-
-                const newGroup = await axios.post(`${WHAPI_URL}/groups`, {
-                    subject: `NagarAlertHub - ${cityName}`,
-                    participants: seedParticipant
-                }, { headers: { Authorization: `Bearer ${WHAPI_TOKEN}` } });
-                groupId = newGroup.data.group_id;
-                console.log(`[WHAPI] Created group ${cityName} (ID: ${groupId})`);
-
-            } catch (createErr) {
-                // Common Error: 400 Bad Request (Participants < 1) or 404 (Not in contacts)
-                console.warn(`[WHAPI] Could not create group for ${cityName}. Reason: ${createErr.response?.data?.error?.details || createErr.message}`);
-                console.warn("[WHAPI] Skipping community invite link. User verified but not added to group.");
-                return null; // Exit gracefully
-            }
-        } else {
-            console.log(`[WHAPI] Found existing group: ${cityName} (${group.id})`);
-            groupId = group.id;
-        }
-
-        // Get INVITE LINK & Send DM
-        // Get INVITE LINK & Send DM
-        /* 
-        if (groupId) {
-            try {
-                const inviteResponse = await axios.get(`${WHAPI_URL}/groups/${groupId}/invite`, {
-                    headers: { Authorization: `Bearer ${WHAPI_TOKEN}` }
-                });
-
-                let inviteLink = inviteResponse.data.invite_link;
-                if (!inviteLink && (inviteResponse.data.invite_code || inviteResponse.data.code)) {
-                    inviteLink = `https://chat.whatsapp.com/${inviteResponse.data.invite_code || inviteResponse.data.code}`;
-                }
-
-                if (inviteLink) {
-                     await sendMessage(cleanPhone,
-                         `✅ Verification Complete!\n\n👋 *Welcome to Nagar Alert Hub*\n\nJoin your local *${cityName}* community group to receive alerts and report issues:\n${inviteLink}`
-                     );
-                    console.log(`[WHAPI] Invite link sent to ${cleanPhone}`);
-                }
-            } catch (inviteErr) {
-                console.error("[WHAPI] Failed to get invite link:", inviteErr.message);
-            }
-        }
-        */
-
-        return groupId;
-    } catch (error) {
-        console.error("WhatsApp Community Error:", error.message);
-        return null; // Ensure we never throw
-    }
+exports.broadcastTargetedAlert = async (targetLocation, message) => {
+    console.log(`[Mock Broadcast] To ${targetLocation}: ${message}`);
 };
 
-module.exports = {
-    handleWebhook: exports.handleWebhook,
-    sendManualBroadcast: exports.sendManualBroadcast,
-    sendMessage,
-    broadcastTargetedAlert,
-    createCommunity,
-    joinCityCommunity: exports.joinCityCommunity
-};
+module.exports = exports;

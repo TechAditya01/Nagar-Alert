@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreVertical, MapPin, AlertTriangle, CheckCircle, Sparkles, Plus, Search, Maximize2, X, Send, ThumbsDown, CheckSquare, Clock, Video } from 'lucide-react';
+import { MoreVertical, MapPin, AlertTriangle, CheckCircle, Sparkles, Plus, Search, Maximize2, X, Send, ThumbsDown, CheckSquare, Clock, Video, AlignLeft } from 'lucide-react';
 import AdminLayout from './AdminLayout';
 import { useAuth } from '../../context/AuthContext';
 import { getDatabase, ref, onValue, update } from 'firebase/database';
@@ -349,30 +349,29 @@ const AdminDashboard = () => {
                                             <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Audio Evidence</div>
                                             <audio controls className="w-full h-10" src={selectedIncident.imageUrl} />
                                         </div>
+                                    ) : selectedIncident.mediaType === 'text' ? (
+                                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800/50 p-6 text-center">
+                                            <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full mb-3 text-blue-600 dark:text-blue-400">
+                                                <AlignLeft size={24} />
+                                            </div>
+                                            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">Text Report</div>
+                                        </div>
                                     ) : selectedIncident.imageUrl ? (
                                         <img
                                             referrerPolicy="no-referrer"
-                                            src={
-                                                selectedIncident.imageUrl.includes('via.placeholder.com')
-                                                    ? selectedIncident.imageUrl.replace('via.placeholder.com', 'placehold.co')
-                                                    : selectedIncident.imageUrl === "https://placehold.co/300"
-                                                        ? "https://placehold.co/600x400/334155/FFFFFF?text=Simulated+Report+Image"
-                                                        : selectedIncident.imageUrl
-                                            }
+                                            src={selectedIncident.imageUrl}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                             alt="Incident Evidence"
                                             onError={(e) => {
-                                                console.error("Image load failed, hiding element:", selectedIncident.imageUrl);
+                                                console.error("Image load failed:", selectedIncident.imageUrl);
                                                 e.target.style.display = 'none';
-                                                // Find the placeholder sibling and show it
-                                                const placeholder = e.target.parentElement.querySelector('.no-media-placeholder');
-                                                if (placeholder) placeholder.classList.remove('hidden');
-                                                if (placeholder) placeholder.classList.add('flex');
+                                                e.target.parentElement.querySelector('.no-media-placeholder').classList.remove('hidden');
+                                                e.target.parentElement.querySelector('.no-media-placeholder').classList.add('flex');
                                             }}
                                         />
                                     ) : null}
 
-                                    <div className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 no-media-placeholder ${selectedIncident.mediaType === 'video' || selectedIncident.imageUrl ? 'hidden' : 'flex'
+                                    <div className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 no-media-placeholder ${selectedIncident.mediaType === 'video' || selectedIncident.mediaType === 'text' || selectedIncident.mediaType === 'audio' || selectedIncident.imageUrl ? 'hidden' : 'flex'
                                         }`}>
                                         <div className="bg-white dark:bg-slate-700 p-3 rounded-full mb-2">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
@@ -380,11 +379,13 @@ const AdminDashboard = () => {
                                         <span className="text-xs font-bold opacity-70">No Media Available</span>
                                     </div>
 
-                                    <div className="absolute top-2 right-2 flex gap-1 z-10">
-                                        <button className="p-1.5 bg-black/50 backdrop-blur-sm text-white rounded-lg hover:bg-black/70 transition-colors">
-                                            <Maximize2 size={14} />
-                                        </button>
-                                    </div>
+                                    {selectedIncident.mediaType !== 'text' && selectedIncident.mediaType !== 'audio' && (
+                                        <div className="absolute top-2 right-2 flex gap-1 z-10">
+                                            <button className="p-1.5 bg-black/50 backdrop-blur-sm text-white rounded-lg hover:bg-black/70 transition-colors">
+                                                <Maximize2 size={14} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* AI Analysis Box */}
@@ -463,7 +464,7 @@ const AdminDashboard = () => {
                                                 <CheckSquare size={18} /> Accept
                                             </button>
                                         </div>
-                                    ) : selectedIncident.status === 'Accepted' ? (
+                                    ) : (selectedIncident.status === 'Accepted' || selectedIncident.status === 'Verified') ? (
                                         <div className="space-y-3">
                                             <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-500/20 rounded-xl text-center">
                                                 <div className="text-green-600 dark:text-green-400 font-bold text-sm flex items-center justify-center gap-2">
@@ -543,11 +544,21 @@ const TableRow = ({ id, address, img, type, priority, status, isSelected, onClic
                         <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 shadow-sm">
                             <Video size={20} />
                         </div>
+                    ) : mediaType === 'audio' ? (
+                        <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 shadow-sm">
+                            <Video size={20} className="hidden" /> {/* Reuse style or add Audio icon */}
+                            <span className="text-[8px] font-bold">AUDIO</span>
+                        </div>
+                    ) : mediaType === 'text' ? (
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500 shadow-sm">
+                            <AlignLeft size={20} />
+                        </div>
                     ) : (
                         <img
                             src={img && img.includes('via.placeholder.com') ? img.replace('via.placeholder.com', 'placehold.co') : (img || 'https://placehold.co/100')}
                             className="w-10 h-10 rounded-xl object-cover bg-slate-200 dark:bg-slate-700 shadow-sm"
                             alt=""
+                            onError={(e) => { e.target.src = 'https://placehold.co/100?text=Error'; }}
                         />
                     )}
                     <div>
@@ -569,7 +580,7 @@ const TableRow = ({ id, address, img, type, priority, status, isSelected, onClic
             </td>
             <td className="px-6 py-4">
                 <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tighter ${status === 'Pending' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
-                    status === 'Accepted' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
+                    status === 'Accepted' || status === 'Verified' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
                         status === 'Pending Address' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
                             status === 'Resolved' ? 'bg-green-50 text-green-600 border border-green-100' :
                                 'bg-slate-100 text-slate-500'
