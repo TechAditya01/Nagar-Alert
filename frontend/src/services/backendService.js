@@ -1,6 +1,5 @@
 // Real Backend Service
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
-
+const API_BASE_URL = 'https://team-sync-ranchi-hack.onrender.com';
 export const verifyImageWithAI = async (file) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
