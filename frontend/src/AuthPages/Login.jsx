@@ -21,7 +21,7 @@ export default function Login() {
 
     const [isLoading, setIsLoading] = useState(false);
 
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+    const API_BASE_URL = 'https://team-sync-ranchi-hack.onrender.com';
 
     // Note: Auto-redirect removed to allow OTP flow for email logins.
     // We only redirect if User is ALREADY authenticated on page load (clean session check),
