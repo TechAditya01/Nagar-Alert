@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Camera, MapPin, CheckCircle, AlertTriangle, Trash2,
-    Lightbulb, Droplets, X, Loader2, Upload, Search, Crosshair, Award
+    Lightbulb, Droplets, X, Loader2, Upload, Search, Crosshair, Award,
+    Video, Mic
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CivicLayout from './CivicLayout';
 import { verifyImageWithAI, submitReportToBackend } from '../../services/backendService';
-import { uploadImage } from '../../services/storageService';
+import { uploadImage, uploadVideo, uploadAudio } from '../../services/storageService';
 import { auth } from '../../services/firebase';
 import { GoogleMap, Marker, useJsApiLoader, Autocomplete } from '@react-google-maps/api';
 import { GOOGLE_MAPS_API_KEY } from '../../mapsConfig';
@@ -35,15 +36,28 @@ const darkMapStyles = [
 const ReportIssue = () => {
     const { theme } = useTheme();
     const navigate = useNavigate();
+
+    // Media states
+    const [mediaType, setMediaType] = useState(null); // 'image', 'video', 'audio'
     const [selectedImage, setSelectedImage] = useState(null);
+    const [selectedVideo, setSelectedVideo] = useState(null);
+    const [selectedAudio, setSelectedAudio] = useState(null);
     const [imageFile, setImageFile] = useState(null);
+    const [videoFile, setVideoFile] = useState(null);
+    const [audioFile, setAudioFile] = useState(null);
+
+    // Analysis states
     const [analyzing, setAnalyzing] = useState(false);
     const [aiResult, setAiResult] = useState(null);
     const [category, setCategory] = useState(null);
     const [department, setDepartment] = useState('');
+
+    // Location states
     const [location, setLocation] = useState({ lat: null, lng: null, address: 'Detecting location...' });
     const [map, setMap] = useState(null);
     const [searchResult, setSearchResult] = useState(null);
+
+    // UI states
     const [showSuccessPopup, setShowSuccessPopup] = useState(false);
     const [submittedReportId, setSubmittedReportId] = useState(null);
 
@@ -243,12 +257,157 @@ const ReportIssue = () => {
         }
     };
 
+    const handleVideoUpload = async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // Validate video file
+            if (!file.type.startsWith('video/')) {
+                toast.error('Please upload a valid video file');
+                return;
+            }
+
+            // Check file size (max 50MB)
+            if (file.size > 50 * 1024 * 1024) {
+                toast.error('Video file too large. Maximum size is 50MB');
+                return;
+            }
+
+            setVideoFile(file);
+            setMediaType('video');
+            const reader = new FileReader();
+            reader.onloadend = () => setSelectedVideo(reader.result);
+            reader.readAsDataURL(file);
+
+            setAnalyzing(true);
+            setAiResult(null);
+
+            try {
+                // For video, we'll analyze the first frame or send to backend
+                const result = await verifyImageWithAI(file); // Backend will handle video
+                if (result) {
+                    const confidenceScore = formatConfidence(result.ai_confidence || result.confidence?.overall);
+
+                    setAiResult({
+                        detected: result.detected_issue || result.explanation || 'Issue Detected',
+                        confidence: `${confidenceScore}%`,
+                        confidenceValue: confidenceScore,
+                        severity: result.verified ? 'High' : 'Low',
+                        recommendation: result.verified ? 'Verified by Gemini AI' : 'Low confidence detection',
+                        isVerified: result.verified,
+                        imageOverview: result.imageOverview || null,
+                        detailedIssueAnalysis: result.detailedIssueAnalysis || null,
+                        eventDetection: result.eventDetection || null,
+                        classification: result.classification || null,
+                        departmentRouting: result.departmentRouting || null,
+                        actionableInsights: result.actionableInsights || null,
+                        fullAnalysis: result
+                    });
+
+                    if (result.departmentRouting?.primaryDepartment) {
+                        setDepartment(result.departmentRouting.primaryDepartment);
+                    }
+                    if (result.classification?.category) {
+                        setCategory(result.classification.category.toLowerCase());
+                    }
+                }
+            } catch (error) {
+                console.error("Video Analysis Failed:", error);
+                setAiResult({
+                    detected: 'Analysis Failed',
+                    confidence: '0%',
+                    severity: 'Unknown',
+                    recommendation: 'Could not analyze video.'
+                });
+            } finally {
+                setAnalyzing(false);
+            }
+        }
+    };
+
+    const handleAudioUpload = async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // Validate audio file
+            if (!file.type.startsWith('audio/')) {
+                toast.error('Please upload a valid audio file');
+                return;
+            }
+
+            // Check file size (max 10MB)
+            if (file.size > 10 * 1024 * 1024) {
+                toast.error('Audio file too large. Maximum size is 10MB');
+                return;
+            }
+
+            setAudioFile(file);
+            setMediaType('audio');
+            const reader = new FileReader();
+            reader.onloadend = () => setSelectedAudio(reader.result);
+            reader.readAsDataURL(file);
+
+            setAnalyzing(true);
+            setAiResult(null);
+
+            try {
+                // For audio, backend will transcribe and analyze
+                const result = await verifyImageWithAI(file); // Backend will handle audio
+                if (result) {
+                    const confidenceScore = formatConfidence(result.ai_confidence || result.confidence?.overall);
+
+                    setAiResult({
+                        detected: result.detected_issue || result.explanation || 'Issue Detected from Audio',
+                        confidence: `${confidenceScore}%`,
+                        confidenceValue: confidenceScore,
+                        severity: result.verified ? 'High' : 'Low',
+                        recommendation: result.verified ? 'Verified by Gemini AI' : 'Low confidence detection',
+                        isVerified: result.verified,
+                        transcription: result.transcription || null,
+                        eventDetection: result.eventDetection || null,
+                        classification: result.classification || null,
+                        departmentRouting: result.departmentRouting || null,
+                        actionableInsights: result.actionableInsights || null,
+                        fullAnalysis: result
+                    });
+
+                    if (result.departmentRouting?.primaryDepartment) {
+                        setDepartment(result.departmentRouting.primaryDepartment);
+                    }
+                    if (result.classification?.category) {
+                        setCategory(result.classification.category.toLowerCase());
+                    }
+                }
+            } catch (error) {
+                console.error("Audio Analysis Failed:", error);
+                setAiResult({
+                    detected: 'Analysis Failed',
+                    confidence: '0%',
+                    severity: 'Unknown',
+                    recommendation: 'Could not analyze audio.'
+                });
+            } finally {
+                setAnalyzing(false);
+            }
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            let imageUrl = selectedImage;
+            let mediaUrl = null;
+            let finalMediaType = 'image'; // Default to image if generic or fallback
+
             if (imageFile) {
-                imageUrl = await uploadImage(imageFile, 'civic-reports');
+                mediaUrl = await uploadImage(imageFile, 'civic-reports');
+                finalMediaType = 'image';
+            } else if (videoFile) {
+                mediaUrl = await uploadVideo(videoFile, 'civic-reports');
+                finalMediaType = 'video';
+            } else if (audioFile) {
+                mediaUrl = await uploadAudio(audioFile, 'civic-reports');
+                finalMediaType = 'audio';
+            } else if (selectedImage && !imageFile) {
+                // Case where selectedImage is a string (e.g. reused or pre-filled), though mostly imageFile is present
+                mediaUrl = selectedImage;
             }
 
             const reportData = {
@@ -256,9 +415,11 @@ const ReportIssue = () => {
                 department: department,
                 description: e.target.elements.description.value,
                 location: { lat: location.lat, lng: location.lng, address: location.address },
-                imageUrl: imageUrl,
+                imageUrl: finalMediaType === 'image' ? mediaUrl : null, // Backward compatibility
+                mediaUrl: mediaUrl,
+                mediaType: finalMediaType,
                 aiVerified: aiResult?.isVerified || false,
-                aiAnalysis: aiResult?.detected || 'No analysis available',
+                aiAnalysis: aiResult?.detected || aiResult?.transcription || 'No analysis available',
                 aiConfidence: aiResult?.confidence ? parseInt(aiResult.confidence) : 0,
                 priority: aiResult?.severity === 'High' ? 'High' : 'Normal',
                 status: 'Pending',
@@ -310,19 +471,79 @@ const ReportIssue = () => {
                         </div>
 
                         <div className="mb-6">
-                            {!selectedImage ? (
-                                <div className="relative group h-[500px]">
-                                    <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
-                                    <div className="w-full h-full border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-700/50 group-hover:bg-slate-100 dark:group-hover:bg-slate-700 group-hover:border-blue-500 transition-all">
-                                        <div className="w-24 h-24 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-6 group-hover:scale-110 transition-transform">
-                                            <Upload size={40} />
+                            {!selectedImage && !selectedVideo && !selectedAudio ? (
+                                <div>
+                                    {/* Media Type Selector */}
+                                    <div className="grid grid-cols-3 gap-4 mb-6">
+                                        {/* Image Button */}
+                                        <div
+                                            onClick={() => document.getElementById('image-upload').click()}
+                                            className="relative group cursor-pointer"
+                                        >
+                                            <input
+                                                id="image-upload"
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleImageUpload}
+                                                className="hidden"
+                                            />
+                                            <div className="h-[180px] border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-700/50 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:border-blue-500 transition-all">
+                                                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3 group-hover:scale-110 transition-transform">
+                                                    <Camera size={32} />
+                                                </div>
+                                                <p className="font-bold text-lg text-slate-900 dark:text-white mb-1">Photo</p>
+                                                <p className="text-slate-600 dark:text-slate-400 text-xs">JPG, PNG (Max 10MB)</p>
+                                            </div>
                                         </div>
-                                        <p className="font-bold text-xl text-slate-900 dark:text-white mb-2">Drop image here</p>
-                                        <p className="text-slate-600 dark:text-slate-400 text-sm">or click to browse</p>
-                                        <p className="text-slate-500 dark:text-slate-500 text-xs mt-3">Supports JPG, PNG (Max 5MB)</p>
+
+                                        {/* Video Button */}
+                                        <div
+                                            onClick={() => document.getElementById('video-upload').click()}
+                                            className="relative group cursor-pointer"
+                                        >
+                                            <input
+                                                id="video-upload"
+                                                type="file"
+                                                accept="video/*"
+                                                onChange={handleVideoUpload}
+                                                className="hidden"
+                                            />
+                                            <div className="h-[180px] border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-700/50 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:border-blue-500 transition-all">
+                                                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3 group-hover:scale-110 transition-transform">
+                                                    <Video size={32} />
+                                                </div>
+                                                <p className="font-bold text-lg text-slate-900 dark:text-white mb-1">Video</p>
+                                                <p className="text-slate-600 dark:text-slate-400 text-xs">MP4, WebM (Max 50MB)</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Audio/Voice Button */}
+                                        <div
+                                            onClick={() => document.getElementById('audio-upload').click()}
+                                            className="relative group cursor-pointer"
+                                        >
+                                            <input
+                                                id="audio-upload"
+                                                type="file"
+                                                accept="audio/*"
+                                                onChange={handleAudioUpload}
+                                                className="hidden"
+                                            />
+                                            <div className="h-[180px] border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-700/50 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:border-blue-500 transition-all">
+                                                <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-3 group-hover:scale-110 transition-transform">
+                                                    <Mic size={32} />
+                                                </div>
+                                                <p className="font-bold text-lg text-slate-900 dark:text-white mb-1">Voice</p>
+                                                <p className="text-slate-600 dark:text-slate-400 text-xs">MP3, WAV (Max 10MB)</p>
+                                            </div>
+                                        </div>
                                     </div>
+
+                                    <p className="text-center text-slate-500 dark:text-slate-400 text-sm">
+                                        Click on any option above to upload evidence
+                                    </p>
                                 </div>
-                            ) : (
+                            ) : selectedImage ? (
                                 <div className="relative h-[500px] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group">
                                     <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -514,7 +735,135 @@ const ReportIssue = () => {
                                         )}
                                     </AnimatePresence>
                                 </div>
-                            )}
+                            ) : selectedVideo ? (
+                                <div className="video-preview-wrapper relative h-[500px] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 group">
+                                    <video src={selectedVideo} controls className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setSelectedVideo(null); setVideoFile(null); setAiResult(null); setMediaType(null); }}
+                                            className="absolute top-4 right-4 bg-red-600 hover:bg-red-700 rounded-lg p-3 text-white transition-colors pointer-events-auto"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+
+                                    {/* AI Analysis Overlay for Video */}
+                                    <AnimatePresence>
+                                        {(analyzing || aiResult) && (
+                                            <motion.div
+                                                initial={{ y: 100, opacity: 0 }}
+                                                animate={{ y: 0, opacity: 1 }}
+                                                className="absolute bottom-0 inset-x-0 bg-white dark:bg-slate-800 p-6 border-t border-slate-200 dark:border-slate-700 max-h-[60%] overflow-y-auto"
+                                            >
+                                                {analyzing ? (
+                                                    <div className="flex items-center gap-4">
+                                                        <Loader2 size={32} className="animate-spin text-blue-600 dark:text-blue-400" />
+                                                        <div>
+                                                            <div className="font-bold text-slate-900 dark:text-white">Gemini AI Analysis</div>
+                                                            <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">Analyzing video content...</div>
+                                                        </div>
+                                                    </div>
+                                                ) : aiResult && (
+                                                    <div className="space-y-3">
+                                                        <div className="flex items-start gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+                                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${aiResult.isVerified ? 'bg-blue-600 dark:bg-blue-500' : 'bg-red-600 dark:bg-red-500'}`}>
+                                                                {aiResult.isVerified ? <CheckCircle size={20} className="text-white" /> : <AlertTriangle size={20} className="text-white" />}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h4 className="font-bold text-slate-900 dark:text-white text-base mb-1">{aiResult.detected}</h4>
+                                                                <p className="text-xs text-slate-600 dark:text-slate-400">{aiResult.recommendation}</p>
+                                                            </div>
+                                                            <span className={`px-2 py-1 rounded text-xs font-semibold ${aiResult.isVerified ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
+                                                                {aiResult.severity}
+                                                            </span>
+                                                        </div>
+                                                        {aiResult.isVerified && (
+                                                            <div>
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">AI Confidence</span>
+                                                                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{aiResult.confidence}</span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                                                                    <div className="bg-blue-600 dark:bg-blue-500 h-full transition-all duration-500" style={{ width: aiResult.confidence }}></div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            ) : selectedAudio ? (
+                                /* Audio Preview - FIXED */
+                                <section className="audio-preview-wrapper relative h-[400px] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-blue-50 to-slate-50 dark:from-slate-800 dark:to-slate-700">
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center p-8">
+                                        <div className="w-32 h-32 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                                            <Mic size={64} className="text-blue-600 dark:text-blue-400" />
+                                        </div>
+                                        <audio src={selectedAudio} controls className="w-full max-w-md mb-4" />
+                                        <button
+                                            type="button"
+                                            onClick={() => { setSelectedAudio(null); setAudioFile(null); setAiResult(null); setMediaType(null); }}
+                                            className="mt-4 bg-red-600 hover:bg-red-700 rounded-lg px-4 py-2 text-white text-sm font-semibold transition-colors flex items-center gap-2"
+                                        >
+                                            <X size={16} />
+                                            Remove Audio
+                                        </button>
+                                    </div>
+
+                                    {/* AI Analysis Overlay for Audio */}
+                                    <AnimatePresence>
+                                        {(analyzing || aiResult) && (
+                                            <motion.div
+                                                initial={{ y: 100, opacity: 0 }}
+                                                animate={{ y: 0, opacity: 1 }}
+                                                className="absolute bottom-0 inset-x-0 bg-white dark:bg-slate-800 p-6 border-t border-slate-200 dark:border-slate-700"
+                                            >
+                                                {analyzing ? (
+                                                    <div className="flex items-center gap-4">
+                                                        <Loader2 size={32} className="animate-spin text-blue-600 dark:text-blue-400" />
+                                                        <div>
+                                                            <div className="font-bold text-slate-900 dark:text-white">Gemini AI Analysis</div>
+                                                            <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">Transcribing and analyzing audio...</div>
+                                                        </div>
+                                                    </div>
+                                                ) : aiResult && (
+                                                    <div className="space-y-3">
+                                                        <div className="flex items-start gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+                                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${aiResult.isVerified ? 'bg-blue-600 dark:bg-blue-500' : 'bg-red-600 dark:bg-red-500'}`}>
+                                                                {aiResult.isVerified ? <CheckCircle size={20} className="text-white" /> : <AlertTriangle size={20} className="text-white" />}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h4 className="font-bold text-slate-900 dark:text-white text-base mb-1">{aiResult.detected}</h4>
+                                                                <p className="text-xs text-slate-600 dark:text-slate-400">{aiResult.recommendation}</p>
+                                                            </div>
+                                                        </div>
+                                                        {aiResult.transcription && (
+                                                            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+                                                                <h5 className="font-bold text-xs text-slate-900 dark:text-white mb-2">Transcription:</h5>
+                                                                <p className="text-xs text-slate-600 dark:text-slate-400 italic">"{aiResult.transcription}"</p>
+                                                            </div>
+                                                        )}
+                                                        {aiResult.isVerified && (
+                                                            <div>
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">AI Confidence</span>
+                                                                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{aiResult.confidence}</span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                                                                    <div className="bg-blue-600 dark:bg-blue-500 h-full transition-all duration-500" style={{ width: aiResult.confidence }}></div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </section>
+                            ) : null}
                         </div>
                     </div>
                 </div>
@@ -565,6 +914,7 @@ const ReportIssue = () => {
                                         center={{ lat: location.lat, lng: location.lng }}
                                         zoom={15}
                                         onLoad={onMapLoad}
+                                        onUnmount={onUnmount}
                                         options={{
                                             streetViewControl: false,
                                             mapTypeControl: false,
@@ -659,13 +1009,13 @@ const ReportIssue = () => {
                         {/* Submit Button */}
                         <button
                             type="submit"
-                            disabled={!selectedImage || analyzing || !department}
+                            disabled={!selectedImage && !selectedVideo && !selectedAudio || analyzing || !department}
                             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
                         >
                             {analyzing ? (
                                 <>
                                     <Loader2 size={20} className="animate-spin" />
-                                    Analyzing Image...
+                                    Analyzing...
                                 </>
                             ) : (
                                 <>
