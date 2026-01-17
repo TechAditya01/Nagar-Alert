@@ -24,14 +24,13 @@
 *   **Framework**: React.js (Vite)
 *   **Styling**: CSS Modules / Tailwind (if applicable)
 *   **Maps**: Leaflet / Google Maps API
-*   **Auth**: Firebase Authentication (Phone/Email)
+*   **Auth**: Firebase Authentication (Email)
 
 ### **Backend**
 *   **Runtime**: Node.js & Express.js
 *   **AI Engine**: Google Cloud Vertex AI (Gemini 1.5 Flash)
 *   **Database**: Firebase Realtime Database
 *   **WhatsApp API**: Whapi.cloud (Gateway)
-*   **Notifications**: Twilio (SMS), Nodemailer (Email)
 
 ---
 
@@ -140,3 +139,4 @@ SYNC_Nagar_Alert_Hub/
 ---
 
 Developed for **Nagar Alert Hub** 🚀
+
