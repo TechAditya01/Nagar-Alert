@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { handleWebhook, sendManualBroadcast } = require('../controllers/whatsappController');
+const { handleWebhook, verifyWebhook } = require('../controllers/whatsappController');
 
-// Webhook endpoint for Whapi
+// Webhook endpoint for WhatsApp (Whapi or Meta Cloud API)
 router.post('/webhook', handleWebhook);
-router.get('/webhook', (req, res) => res.send('Webhook Active'));
 
-// Manual Broadcast from Dashboard
-router.post('/send-broadcast', sendManualBroadcast);
+// Verification endpoint for Meta Cloud API
+router.get('/webhook', verifyWebhook);
 
 module.exports = router;

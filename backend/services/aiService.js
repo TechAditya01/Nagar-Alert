@@ -21,6 +21,31 @@ const generativeModel = vertex_ai.getGenerativeModel({
     },
 });
 
+// 2. Chat Model (For "Rahul" Persona - Natural Language)
+const chatModel = vertex_ai.getGenerativeModel({
+    model: modelName,
+    generationConfig: {
+        maxOutputTokens: 500,
+        temperature: 0.7, // Higher temp for creative/human-like replies
+    },
+});
+
+/**
+ * Generates a conversational reply based on the persona and context.
+ */
+exports.generateChatReply = async (systemInstruction, userContext) => {
+    try {
+        const prompt = `${systemInstruction}\n\nCONTEXT:\n${userContext}`;
+        const result = await chatModel.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        });
+        return result.response.candidates[0].content.parts[0].text.trim();
+    } catch (error) {
+        console.error("Chat Generation Error:", error);
+        return "I received your message. Please share the location.";
+    }
+};
+
 /**
  * Generic Multimodal Analyzer (Image, Video, Audio)
  * @param {string} base64Data - Base64 string of the media
