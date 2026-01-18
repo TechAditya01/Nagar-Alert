@@ -46,8 +46,7 @@ City infrastructures suffer because reporting issues (potholes, garbage, waterlo
 
 ## 🌍 Deployment Links
 
-*   **Frontend (Live App):** [https://nagar-alert.vercel.app](https://nagar-alert.vercel.app) *(Example)*
-*   **Backend (API):** [https://nagar-alert-api.onrender.com](https://nagar-alert-api.onrender.com) *(Example)*
+* link = "https://techaditya01.github.io/Team-SYNC-Ranchi-Hack"
 
 ---
 
@@ -94,3 +93,4 @@ Create a `.env` file in both `frontend` and `backend` using the provided `.env.s
 
 ---
 **Made with ❤️ by Team SYNC for Ranchi Hackathon 2026**
+
