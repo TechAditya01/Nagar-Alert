@@ -205,13 +205,27 @@ exports.sendOtp = async (req, res) => {
             };
 
             try {
+                // Attempt to send real email
                 await transporter.sendMail(mailOptions);
                 console.log(`[NODEMAILER] Sent OTP to ${contact}`);
                 res.status(200).json({ message: "OTP sent to email successfully" });
             } catch (error) {
-                console.error("Nodemailer Error:", error);
-                logError("[SEND_OTP] Email Send", error);
-                res.status(500).json({ error: "Failed to send email OTP", details: error.message });
+                console.error("Nodemailer Real Send Error:", error.message);
+
+                // HACKATHON FALLBACK: If real email fails (likely Render IP block),
+                // Log the OTP clearly so the team can login.
+                console.log(`\n🔥🔥🔥 [MOCK MODE ACTIVATED] 🔥🔥🔥`);
+                console.log(`Failed to email ${contact}. Using Mock.`);
+                console.log(`>>> YOUR OTP IS: [ ${otp} ] <<<`);
+                console.log(`🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥\n`);
+
+                logError("[SEND_OTP] Email Failed, Mocked Success", error);
+
+                // Return success to frontend so the UI doesn't hang
+                res.status(200).json({
+                    message: "OTP sent (Mock Mode - Check Server Logs)",
+                    mockMode: true
+                });
             }
 
         } else if (type === 'mobile') {

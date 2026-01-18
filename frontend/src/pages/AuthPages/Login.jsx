@@ -47,7 +47,20 @@ export default function Login() {
             const userCredential = await login(cleanEmail, cleanPassword);
             const uid = userCredential.user.uid;
 
-            // 2. Credentials matched. Now send OTP to Email.
+            // --- HACKATHON DEMO MODE: OTP BYPASSED ---
+            // Direct Dashboard Access
+
+            toast.success('Login Successful! Welcome back.');
+
+            // Navigate based on selected role tab
+            if (userType === 'admin') {
+                navigate('/admin/dashboard');
+            } else {
+                navigate('/civic/dashboard');
+            }
+
+            /* 
+            // OLD FLOW: OTP VERIFICATION (Commented for Demo)
             const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -55,11 +68,9 @@ export default function Login() {
             });
 
             if (!response.ok) throw new Error("Failed to send verification OTP");
-
             toast.success('Credentials verified! Please enter OTP sent to your email.');
-
-            // 3. Navigate to OTP Verification Screen
             navigate('/verify-otp', { state: { email: cleanEmail, mode: 'login', userType, uid } });
+            */
 
         } catch (error) {
             console.error(error);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import Home from './components/Home';
 
 import { AuthProvider } from './context/AuthContext';
@@ -42,7 +42,7 @@ import { ThemeProvider } from './context/ThemeContext';
 
 const App = () => {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <ThemeProvider>
         <AuthProvider>
           <Routes>
@@ -92,7 +92,7 @@ const App = () => {
           </Routes>
         </AuthProvider>
       </ThemeProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
