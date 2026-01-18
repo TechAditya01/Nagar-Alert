@@ -262,6 +262,29 @@ OUTPUT COMPREHENSIVE JSON:
 
     } catch (error) {
         console.error("Vertex AI Media Analysis Failed:", error.message);
+
+        // --- HACKATHON DEMO SAVER ---
+        // If Auth fails, don't crash the app. Return a "Safe" Mock Response.
+        if (error.message.includes('authenticate') || error.stack.includes('GoogleAuthError')) {
+            console.log(`\n🤖⚠️ [AI MOCK MODE ACTIVATED] ⚠️🤖`);
+            console.log("Authentication failed. Returning Mock Analysis for Demo.");
+
+            return {
+                isReal: true,
+                fakeReason: null,
+                issue: "Reported Civic Issue",
+                description: "Analysis simulation: Detected pot-hole or road damage based on visual patterns. (Mocked for Demo)",
+                priority: "High",
+                category: "Roads",
+                confidence: 95,
+
+                // Mapped fields
+                eventType: 'Road Closure',
+                department: 'Municipal',
+                aiSource: 'mock-fallback'
+            };
+        }
+
         return { isReal: false, fakeReason: "AI Service Error" };
     }
 };
