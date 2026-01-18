@@ -1,142 +1,96 @@
-# 🏙️ Nagar Alert Hub (SYNC)
+# 🚨 Nagar Alert System (Team SYNC)
+> **Revolutionizing Civic Issue Reporting with AI-Powered WhatsApp Bot & Real-Time Dashboard**
 
-**Nagar Alert Hub** is a Next-Gen Civic Issue Reporting Platform designed to bridge the gap between citizens and municipal authorities. It leverages **Artificial Intelligence** to verify reports and provides a seamless experience via **WhatsApp** and a **Web Dashboard**.
+![Project Banner](https://img.shields.io/badge/Status-Hackathon%20Ready-success) ![Tech Stack](https://img.shields.io/badge/Stack-MERN%20%2B%20Firebase%20%2B%20AI-blue)
+
+## 🌟 Problem Statement (PS-AIML-01)
+City infrastructures suffer because reporting issues (potholes, garbage, waterlogging) is tedious. Citizens don't want to install another app. **Nagar Alert** solves this by letting anyone report issues via **WhatsApp**, powered by AI for verification and classification.
 
 ---
 
-## 🚀 Key Features
+## 🚀 Key Features (Why We Win)
 
-*   **🤖 AI Forensic Analysis**: automatically analyzes uploaded images using **Google Vertex AI (Gemini 1.5 Flash)** to detect:
-    *   Deepfakes or AI-generated images.
-    *   Screenshots or non-civic content.
-    *   Severity of the issue (High/Medium/Low).
-*   **💬 WhatsApp Bot Integration**: Citizens can simply send a photo to the official number to report a pothole, garbage dump, or broken streetlight. The bot handles location collection and status updates.
-*   **📊 Admin Command Center**: A real-time dashboard for authorities to view incoming tickets, visualize them on a **Live Map**, and dispatch teams.
-*   **📍 Geo-Tagging**: Precise location tracking for every report.
-*   **🎮 Gamification**: Citizens earn "Karma Points" for every verified report, encouraging active participation.
-*   **🔔 Instant Feedback**: Automated WhatsApp/SMS notifications when a report is Accepted, Rejected, or Resolved.
+### 📲 1. WhatsApp-Based Reporting (No App Needed!)
+*   **Text/Photo/Video/Audio:** Citizens just send a message.
+*   **AI Auto-Verification:** Gemini 2.0 Flash instantly verifies if the image is real or fake.
+*   **Location extraction:** AI extracts location from text or reads GPS tags.
+*   **Bot Persona:** "Rahul" - A friendly, Hinglish-speaking civic volunteer bot.
+
+### 🤖 2. Event Detection & Classification
+*   **Multi-Modal AI:** Analyzes text, images, and audio to categorize issues (e.g., "Pothole", "Garbage", "Safety").
+*   **Complexity Assessment:** AI assigns priority (High/Medium/Low) automatically.
+
+### 📊 3. Real-Time Admin Dashboard
+*   **Live Incident Map:** See reports pop up instantly on an interactive map.
+*   **Department Filtering:** Sanitation, Roads, Electricity, etc.
+*   **Analytics:** Line graphs and charts showing weekly activity and reporting hotspots.
+
+### 📢 4. Smart Broadcasting
+*   **Multi-Channel Alerts:** Automatically sends warnings via **WhatsApp & Email** to citizens in affected areas.
+*   **Targeted Reach:** Only alerts people in the specific radius of the incident.
 
 ---
 
 ## 🛠️ Tech Stack
 
-### **Frontend**
-*   **Framework**: React.js (Vite)
-*   **Styling**: CSS Modules / Tailwind (if applicable)
-*   **Maps**: Leaflet / Google Maps API
-*   **Auth**: Firebase Authentication (Email)
-
-### **Backend**
-*   **Runtime**: Node.js & Express.js
-*   **AI Engine**: Google Cloud Vertex AI (Gemini 1.5 Flash)
-*   **Database**: Firebase Realtime Database
-*   **WhatsApp API**: Whapi.cloud (Gateway)
+| Component | Technology | Used For |
+|-----------|------------|----------|
+| **Frontend** | React, Vite, Tailwind CSS | Responsive User/Admin Dashboards |
+| **Backend** | Node.js, Express.js | API, Webhooks, Business Logic |
+| **Database** | Firebase Realtime DB | Instant data syncing across apps |
+| **AI Engine** | Google Gemini 2.0 Flash | Image analysis, text summarization, chat |
+| **Messaging** | Whapi.cloud / Meta API | WhatsApp Bot & Broadcasting |
+| **Deployment** | Vercel (FE) + Render (BE) | Live Production Hosting |
 
 ---
 
-## ⚙️ Installation & Setup
+## 🌍 Deployment Links
 
-### Prerequisites
-*   Node.js (v18+)
-*   Firebase Project (Realtime DB enabled)
-*   Google Cloud Project (Vertex AI API enabled)
-*   Whapi.cloud Account (for WhatsApp)
+*   **Frontend (Live App):** [https://nagar-alert.vercel.app](https://nagar-alert.vercel.app) *(Example)*
+*   **Backend (API):** [https://nagar-alert-api.onrender.com](https://nagar-alert-api.onrender.com) *(Example)*
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/yourusername/SYNC_Nagar_Alert_Hub.git
-cd SYNC_Nagar_Alert_Hub
-```
+---
 
-### 2. Backend Setup
-Navigate to the backend folder and install dependencies:
+## 🚀 How to Run Locally
+
+### 1. Backend Setup
 ```bash
 cd backend
 npm install
-```
-
-**Configure Environment Variables:**
-Create a `.env` file in the `backend/` directory:
-```ini
-PORT=5000
-FIREBASE_DB_URL=https://your-project.firebaseio.com
-GOOGLE_APPLICATION_CREDENTIALS=./service-account-key.json
-GCP_PROJECT_ID=your-gcp-project-id
-GCP_LOCATION=us-central1
-WHAPI_TOKEN=your_whapi_token
-WHAPI_INSTANCE_URL=https://gate.whapi.cloud
-ADMIN_NUMBER=919999999999
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-password
-```
-*Note: Place your Google Cloud Service Account JSON file inside the `backend/` folder.*
-
-**Start the Server:**
-```bash
 node server.js
+# Server runs on http://localhost:5001
 ```
 
-### 3. Frontend Setup
-Open a new terminal and navigate to the frontend folder:
+### 2. Frontend Setup
 ```bash
 cd frontend
 npm install
-```
-
-**Configure Environment Variables:**
-Create a `.env` file in the `frontend/` directory:
-```ini
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_DB_URL=https://your-project.firebaseio.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
-VITE_GOOGLE_MAPS_API_KEY=your_maps_key
-```
-
-**Run the App:**
-```bash
 npm run dev
+# App runs on http://localhost:5173
 ```
 
----
-
-## 📱 WhatsApp Bot Usage
-1.  Save the Bot's number (connected via Whapi).
-2.  Send **"Start"** or just **send an image** of a civic issue.
-3.  The **AI** will analyze the image instantly.
-    *   ❌ **Fake/Screen**: Rejected immediately.
-    *   ✅ **Real**: You will be asked to share the location.
-4.  Once location is shared, a **Ticket** is created and visible on the Admin Dashboard.
+### 3. Environment Variables (.env)
+Create a `.env` file in both `frontend` and `backend` using the provided `.env.sample`.
 
 ---
 
-## 📂 Project Structure
-```
-SYNC_Nagar_Alert_Hub/
-├── backend/            # Express Server & API Routes
-│   ├── controllers/    # Logic for WhatsApp, Reports, Auth
-│   ├── services/       # AI Service (Gemini), Firebase Service
-│   └── routes/         # API Endpoints
-├── frontend/           # React Client
-│   ├── src/
-│   │   ├── pages/      # Civic & Admin Pages
-│   │   ├── components/ # Reusable UI Components
-│   │   └── context/    # Auth & State Management
-└── README.md           # Documentation
-```
+## 📸 Screenshots & Demo
+
+### 1. WhatsApp Bot in Action
+*AI analyzing a pothole image and replying instantly.*
+
+### 2. Live Admin Dashboard
+*Real-time map showing verified incidents across the city.*
 
 ---
 
-## 🤝 Contributing
-1.  Fork the repository.
-2.  Create a feature branch (`git checkout -b feature/NewFeature`).
-3.  Commit your changes.
-4.  Push to the branch and open a Pull Request.
+## 🏆 Bonus Features Implemented (6/6)
+- [x] WhatsApp-Based Data Intake
+- [x] Event Detection & Classification
+- [x] Geo-Tagging & Location Mapping
+- [x] Duplicate & Noise Filtering (Basic)
+- [x] AI Alert Summarization
+- [x] WhatsApp Alert Broadcasting
 
 ---
-
-Developed for **Nagar Alert Hub** 🚀
-
+**Made with ❤️ by Team SYNC for Ranchi Hackathon 2026**
