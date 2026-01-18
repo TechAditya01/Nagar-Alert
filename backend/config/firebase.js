@@ -20,17 +20,28 @@ if (!admin.apps.length) {
         const path = require('path');
         const fs = require('fs');
         const serviceAccountPath = path.join(__dirname, '../serviceAccountKey.json');
-
         let config = {
             databaseURL: process.env.FIREBASE_DB_URL,
             storageBucket: process.env.FIREBASE_STORAGE_BUCKET
         };
 
-        if (fs.existsSync(serviceAccountPath)) {
+        // 1. Check for Render Environment Variable (The "Hack")
+        if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+            try {
+                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+                config.credential = admin.credential.cert(serviceAccount);
+                console.log("Firebase Admin Initialized using ENV Variable (FIREBASE_SERVICE_ACCOUNT)");
+            } catch (jsonErr) {
+                console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT:", jsonErr);
+            }
+        }
+        // 2. Check for Local File
+        else if (fs.existsSync(serviceAccountPath)) {
             const serviceAccount = require(serviceAccountPath);
             config.credential = admin.credential.cert(serviceAccount);
             console.log("Firebase Admin Initialized using serviceAccountKey.json");
         } else {
+            // 3. Fallback
             config.credential = admin.credential.applicationDefault();
             console.log("Firebase Admin Initialized using Application Default Credentials");
         }
