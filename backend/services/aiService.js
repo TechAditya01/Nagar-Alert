@@ -2,10 +2,29 @@ const { VertexAI } = require('@google-cloud/vertexai');
 require('dotenv').config();
 
 // Initialize Vertex AI
-const vertex_ai = new VertexAI({
+// Initialize Vertex AI with Explicit Credentials for Render
+const vertexOptions = {
     project: process.env.GCP_PROJECT_ID,
     location: 'us-central1'
-});
+};
+
+// If running on Render (or anywhere with the ENV var), inject credentials directly
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    try {
+        const credentials = typeof process.env.FIREBASE_SERVICE_ACCOUNT === 'string'
+            ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+            : process.env.FIREBASE_SERVICE_ACCOUNT;
+
+        vertexOptions.googleAuthOptions = {
+            credentials: credentials
+        };
+        console.log("✅ [Vertex AI] Initializing with explicit 'FIREBASE_SERVICE_ACCOUNT' credentials.");
+    } catch (err) {
+        console.error("❌ [Vertex AI] Failed to parse FIREBASE_SERVICE_ACCOUNT:", err.message);
+    }
+}
+
+const vertex_ai = new VertexAI(vertexOptions);
 
 // Using Gemini 2.0 Flash for maximum speed and multimodal capabilities
 const modelName = 'gemini-2.0-flash-001';
