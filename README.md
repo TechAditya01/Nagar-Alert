@@ -3,35 +3,35 @@
 
 ![Project Banner](https://img.shields.io/badge/Status-Hackathon%20Ready-success) ![Tech Stack](https://img.shields.io/badge/Stack-MERN%20%2B%20Firebase%20%2B%20AI-blue)
 
-## 🌟 Problem Statement (PS-AIML-01)
+##  Problem Statement (PS-AIML-01)
 City infrastructures suffer because reporting issues (potholes, garbage, waterlogging) is tedious. Citizens don't want to install another app. **Nagar Alert** solves this by letting anyone report issues via **WhatsApp**, powered by AI for verification and classification.
 
 ---
 
-## 🚀 Key Features (Why We Win)
+##  Key Features (Why We Win)
 
-### 📲 1. WhatsApp-Based Reporting (No App Needed!)
+###  1. WhatsApp-Based Reporting (No App Needed!)
 *   **Text/Photo/Video/Audio:** Citizens just send a message.
 *   **AI Auto-Verification:** Gemini 2.0 Flash instantly verifies if the image is real or fake.
 *   **Location extraction:** AI extracts location from text or reads GPS tags.
 *   **Bot Persona:** "Rahul" - A friendly, Hinglish-speaking civic volunteer bot.
 
-### 🤖 2. Event Detection & Classification
+###  2. Event Detection & Classification
 *   **Multi-Modal AI:** Analyzes text, images, and audio to categorize issues (e.g., "Pothole", "Garbage", "Safety").
 *   **Complexity Assessment:** AI assigns priority (High/Medium/Low) automatically.
 
-### 📊 3. Real-Time Admin Dashboard
+###  3. Real-Time Admin Dashboard
 *   **Live Incident Map:** See reports pop up instantly on an interactive map.
 *   **Department Filtering:** Sanitation, Roads, Electricity, etc.
 *   **Analytics:** Line graphs and charts showing weekly activity and reporting hotspots.
 
-### 📢 4. Smart Broadcasting
+###  4. Smart Broadcasting
 *   **Multi-Channel Alerts:** Automatically sends warnings via **WhatsApp & Email** to citizens in affected areas.
 *   **Targeted Reach:** Only alerts people in the specific radius of the incident.
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 | Component | Technology | Used For |
 |-----------|------------|----------|
@@ -44,14 +44,13 @@ City infrastructures suffer because reporting issues (potholes, garbage, waterlo
 
 ---
 
-## 🌍 Deployment Links
+##  Deployment Links
 
-*   **Frontend (Live App):** [https://nagar-alert.vercel.app](https://nagar-alert.vercel.app) *(Example)*
-*   **Backend (API):** [https://nagar-alert-api.onrender.com](https://nagar-alert-api.onrender.com) *(Example)*
+* link = "https://techaditya01.github.io/Team-SYNC-Ranchi-Hack"
 
 ---
 
-## 🚀 How to Run Locally
+##  How to Run Locally
 
 ### 1. Backend Setup
 ```bash
@@ -74,17 +73,7 @@ Create a `.env` file in both `frontend` and `backend` using the provided `.env.s
 
 ---
 
-## 📸 Screenshots & Demo
-
-### 1. WhatsApp Bot in Action
-*AI analyzing a pothole image and replying instantly.*
-
-### 2. Live Admin Dashboard
-*Real-time map showing verified incidents across the city.*
-
----
-
-## 🏆 Bonus Features Implemented (6/6)
+##  Bonus Features Implemented (6/6)
 - [x] WhatsApp-Based Data Intake
 - [x] Event Detection & Classification
 - [x] Geo-Tagging & Location Mapping
@@ -93,4 +82,6 @@ Create a `.env` file in both `frontend` and `backend` using the provided `.env.s
 - [x] WhatsApp Alert Broadcasting
 
 ---
-**Made with ❤️ by Team SYNC for Ranchi Hackathon 2026**
+**Made by Team SYNC for RanchiHacks Hackathon 2026 X GDG Ranchi X SBU**
+
+
