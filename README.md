@@ -3,7 +3,7 @@
 
 ![Project Banner](https://img.shields.io/badge/Status-Hackathon%20Ready-success) ![Tech Stack](https://img.shields.io/badge/Stack-MERN%20%2B%20Firebase%20%2B%20AI-blue)
 
-##  Problem Statement (PS-AIML-01)
+##  Problem Statement
 City infrastructures suffer because reporting issues (potholes, garbage, waterlogging) is tedious. Citizens don't want to install another app. **Nagar Alert** solves this by letting anyone report issues via **WhatsApp**, powered by AI for verification and classification.
 
 ---
@@ -42,13 +42,6 @@ City infrastructures suffer because reporting issues (potholes, garbage, waterlo
 | **Messaging** | Whapi.cloud / Meta API | WhatsApp Bot & Broadcasting |
 | **Deployment** | Vercel (FE) + Render (BE) | Live Production Hosting |
 
----
-
-##  Deployment Links
-
-* link = "https://techaditya01.github.io/Team-SYNC-Ranchi-Hack"
-
----
 
 ##  How to Run Locally
 
@@ -82,6 +75,7 @@ Create a `.env` file in both `frontend` and `backend` using the provided `.env.s
 - [x] WhatsApp Alert Broadcasting
 
 ---
-**Made by Team SYNC for RanchiHacks Hackathon 2026 X GDG Ranchi X SBU**
+**Made by Team SYNC !
+
 
 
