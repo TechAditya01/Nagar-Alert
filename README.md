@@ -1,7 +1,7 @@
 # 🚨 Nagar Alert System (Team SYNC)
 > **Revolutionizing Civic Issue Reporting with AI-Powered WhatsApp Bot & Real-Time Dashboard**
 
-![Project Banner](https://img.shields.io/badge/Status-Hackathon%20Ready-success) ![Tech Stack](https://img.shields.io/badge/Stack-MERN%20%2B%20Firebase%20%2B%20AI-blue)
+![Tech Stack](https://img.shields.io/badge/Stack-MERN%20%2B%20Firebase%20%2B%20AI-blue)
 
 ##  Problem Statement
 City infrastructures suffer because reporting issues (potholes, garbage, waterlogging) is tedious. Citizens don't want to install another app. **Nagar Alert** solves this by letting anyone report issues via **WhatsApp**, powered by AI for verification and classification.
@@ -75,6 +75,7 @@ Create a `.env` file in both `frontend` and `backend` using the provided `.env.s
 - [x] WhatsApp Alert Broadcasting
 
 ---
+
 
 
 
